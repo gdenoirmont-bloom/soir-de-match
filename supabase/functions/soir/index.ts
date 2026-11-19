@@ -119,6 +119,7 @@ Réponds uniquement par un objet JSON, sans texte autour :
 {"partenaires": [{"partenaire": nom, "compte_rendu": texte de 80 mots maximum}],
  "responsables": [{"responsable": nom, "actions": [3 actions courtes pour le prochain match]}]}
 Compte rendu partenaire : factuel, ton professionnel, ce qui a été fait, ce qui a manqué, ce qui a été corrigé, avec les heures. Prêt à envoyer après relecture.
+Écris comme un humain qui rédige un compte rendu : pas d'étiquettes techniques entre parenthèses (urgence, catégorie, statut), pas de répétition d'un même fait signalé deux fois, un seul paragraphe.
 N'invente rien : uniquement ce qui figure dans les signalements. Un partenaire ou un responsable sans signalement n'apparaît pas.`;
 
 async function bilan() {

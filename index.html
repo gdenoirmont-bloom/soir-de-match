@@ -2622,7 +2622,7 @@ function vEcran() {
     const feed = document.getElementById("feed");
     feed.innerHTML = list.length ? list.map((r) => {
       const hidden = r.masque;
-      const sum = hidden ? "Signalement masqué" : r.analyse_ia === "ok" || r.analyse_ia === "echec" ? (r.resume || r.texte) : `<span class="spin"></span>Analyse IA…`;
+      const sum = hidden ? "Signalement masqué" : r.analyse_ia === "ok" ? (r.resume || r.texte) : r.analyse_ia === "echec" ? "Signalement reçu, à lire sur Mon poste" : `<span class="spin"></span>Analyse IA…`;
       return `<div class="item ${r.urgence === "Urgent" && r.statut !== "traite" ? "urgent" : ""} ${r.statut === "traite" ? "done" : ""}">
         ${thumb(r)}<div class="mid">${tags(r)}<div class="sum">${r.analyse_ia === "ok" || r.analyse_ia === "echec" ? esc(sum) : sum}</div>
         <div class="meta"><b>${esc(r.zone || "Zone ?")}</b>${r.responsable ? " → " + esc(r.responsable) : ""}</div></div>
