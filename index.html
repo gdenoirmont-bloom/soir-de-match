@@ -79,6 +79,38 @@
   .qr svg { width: 150px; height: 150px; flex: 0 0 150px; }
   .qr h3 { margin:0 0 6px; font-weight: 900; font-size: 26px; text-transform: uppercase; }
   .empty { color: var(--muted); font-size: 22px; padding: 40px 10px; }
+  .sigbtn { display: none; }
+  @media (min-width: 901px) { body.ecran-mode { overflow: hidden; } }
+  /* Écran central consulté sur un téléphone ou une petite tablette */
+  @media (max-width: 900px) {
+    .ecran { display: block; height: auto; padding: 14px 14px calc(24px + env(safe-area-inset-bottom)); }
+    .ecran > header { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; align-items: stretch; }
+    .ecran > header .club { grid-column: 1; width: 52px; height: 52px; }
+    .ecran > header .title { grid-column: 2 / -1; align-self: center; }
+    .ecran > header .title h2 { font-size: 24px; line-height: 1; }
+    .ecran .count { flex-direction: column; align-items: flex-start; gap: 4px; padding: 10px 12px; border-radius: 14px; }
+    .ecran .count b { font-size: 26px; }
+    .ecran .count span { font-size: 10px; letter-spacing: .03em; max-width: none; }
+    .ecran .count .dot { width: 8px; height: 8px; }
+    .ecran .count.main { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 10px; }
+    .ecran .count.main b { font-size: 34px; }
+    .ecran .count.main span { font-size: 13px; }
+    .feed { overflow: visible; padding-right: 0; }
+    .item { gap: 12px; padding: 12px; border-radius: 16px; align-items: flex-start; }
+    .item .thumb { flex-basis: 64px; height: 64px; border-radius: 10px; font-size: 9px; }
+    .item .thumb.nophoto { display: none; }
+    .item .mid { flex: 1 1 0; min-width: 0; }
+    .item .sum { font-size: 17px; }
+    .item .meta { font-size: 13px; }
+    .item .time { font-size: 15px; flex: none; }
+    .side { margin-top: 18px; gap: 14px; }
+    .zones { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+    .zone { min-height: 0; padding: 8px; border-radius: 12px; }
+    .zone b { font-size: 11px; line-height: 1.15; }
+    .zone i { font-size: 22px; }
+    .qr { display: none; }
+    .sigbtn { display: block; text-align: center; text-decoration: none; }
+  }
 
   /* Mon poste */
   .alert { background: var(--blue); color:#fff; border-radius: 16px; padding: 14px 16px; font-weight: 800; margin-bottom: 14px; animation: pop .4s; }
@@ -2535,7 +2567,7 @@ function thumb(r) {
   if (visiblePhoto(r)) return `<div class="thumb"><img src="${esc(r.photo_url)}" alt=""></div>`;
   if (r.photo_url && r.analyse_ia !== "ok") return `<div class="thumb">Photo en analyse</div>`;
   if (r.photo_url) return `<div class="thumb">Photo masquée</div>`;
-  return `<div class="thumb">Sans photo</div>`;
+  return `<div class="thumb nophoto">Sans photo</div>`;
 }
 function order(list) {
   return [...list].sort((a, b) => {
@@ -2602,7 +2634,7 @@ function vSignaler() {
 }
 
 function vEcran() {
-  document.body.style.overflow = "hidden";
+  document.body.classList.add("ecran-mode");
   const url = location.href.split("#")[0] + "#signaler";
   let qrsvg = "";
   try { const q = qrcode(0, "M"); q.addData(url); q.make(); qrsvg = q.createSvgTag({ cellSize: 5, margin: 0, scalable: true }); } catch {}
@@ -2617,7 +2649,8 @@ function vEcran() {
     </header>
     <div class="feed" id="feed"></div>
     <aside class="side"><div class="zones" id="zones"></div>
-      <div class="qr">${qrsvg}<div><h3>Signalez</h3><div>Scannez avec votre téléphone</div></div></div></aside>
+      <div class="qr">${qrsvg}<div><h3>Signalez</h3><div>Scannez avec votre téléphone</div></div></div>
+      <a class="btn sigbtn" href="#signaler">Signaler un problème</a></aside>
   </div>`;
   const draw = (evt) => {
     const list = order(rows);
@@ -2644,7 +2677,7 @@ function vEcran() {
     }).join("");
   };
   draw(); listeners.add(draw);
-  return () => { listeners.delete(draw); document.body.style.overflow = ""; };
+  return () => { listeners.delete(draw); document.body.classList.remove("ecran-mode"); };
 }
 
 function vPoste() {
