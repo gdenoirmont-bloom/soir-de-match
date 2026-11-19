@@ -35,8 +35,12 @@ create policy "traiter" on public.signalements for update to anon, authenticated
   using (true) with check (statut in ('nouveau', 'traite'));
 
 -- Le public ne peut modifier que le statut (bouton « Traité »). L'IA écrit le reste avec la clé serveur.
+-- Les projets Supabase récents n'ouvrent plus les tables au rôle public par défaut.
+grant usage on schema public to anon, authenticated;
+grant select, insert on public.signalements to anon, authenticated;
 revoke update, delete on public.signalements from anon, authenticated;
 grant update (statut, traite_at) on public.signalements to anon, authenticated;
+grant all on public.signalements to service_role;
 
 -- Temps réel pour l'écran central et « Mon poste »
 do $$ begin

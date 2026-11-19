@@ -43,9 +43,13 @@ async function claude(system: string, content: unknown[], maxTokens = 700): Prom
     });
     if (r.ok) {
       const j = await r.json();
-      return (j.content ?? []).filter((c: { type: string }) => c.type === "text").map((c: { text: string }) => c.text).join("");
+      const blocs = (j.content ?? []) as { type: string; text?: string }[];
+      const txt = blocs.filter((c) => c.type === "text").map((c) => c.text ?? "").join("");
+      if (txt.trim()) return txt;
+      last = `${model} : réponse sans texte (stop_reason ${j.stop_reason}, blocs ${blocs.map((c) => c.type).join(",") || "aucun"})`;
+      continue; // on tente le modèle suivant
     }
-    last = `${r.status} ${await r.text()}`;
+    last = `${model} : ${r.status} ${await r.text()}`;
     if (r.status !== 404 && r.status !== 400) break; // on ne réessaie qu'avec un autre modèle
   }
   throw new Error("Claude : " + last.slice(0, 300));
@@ -53,6 +57,7 @@ async function claude(system: string, content: unknown[], maxTokens = 700): Prom
 
 function parseJSON(t: string) {
   const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) throw new Error("Réponse de Claude sans JSON : " + t.slice(0, 200));
   return JSON.parse(t.slice(a, b + 1));
 }
 
@@ -88,7 +93,7 @@ async function classer(id: string) {
   }
   content.push({ type: "text", text: `Zone : ${row.zone ?? "non précisée"}\nRôle de la personne : ${row.role ?? "non précisé"}\nSignalement : ${row.texte || "(pas de texte, voir la photo)"}` });
   try {
-    const out = parseJSON(await claude(SYSTEM_CLASSER, content, 400));
+    const out = parseJSON(await claude(SYSTEM_CLASSER, content, 1500));
     const cat = Object.keys(SOUS).includes(out.categorie) ? out.categorie : "Incident";
     const upd = {
       analyse_ia: "ok",
@@ -120,7 +125,7 @@ async function bilan() {
   const { data } = await db.from("signalements").select("created_at,zone,categorie,sous_categorie,partenaire,urgence,responsable,resume,texte,statut").order("created_at");
   if (!data?.length) return json({ partenaires: [], responsables: [] });
   const rows = data.map((r) => ({ ...r, heure: new Date(r.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }) }));
-  const out = parseJSON(await claude(SYSTEM_BILAN, [{ type: "text", text: JSON.stringify(rows) }], 2500));
+  const out = parseJSON(await claude(SYSTEM_BILAN, [{ type: "text", text: JSON.stringify(rows) }], 6000));
   return json(out);
 }
 
