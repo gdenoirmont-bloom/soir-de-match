@@ -123,9 +123,10 @@ Compte rendu partenaire : factuel, ton professionnel, ce qui a été fait, ce qu
 N'invente rien : uniquement ce qui figure dans les signalements. Un partenaire ou un responsable sans signalement n'apparaît pas.`;
 
 async function bilan() {
-  const { data } = await db.from("signalements").select("created_at,zone,categorie,sous_categorie,partenaire,urgence,responsable,resume,texte,statut").order("created_at");
+  const { data } = await db.from("signalements").select("created_at,traite_at,zone,categorie,sous_categorie,partenaire,urgence,responsable,resume,texte,statut").eq("masque", false).order("created_at");
   if (!data?.length) return json({ partenaires: [], responsables: [] });
-  const rows = data.map((r) => ({ ...r, heure: new Date(r.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }) }));
+  const hm = (d: string | null) => d ? new Date(d).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }) : null;
+  const rows = data.map(({ created_at, traite_at, ...r }) => ({ ...r, heure_signalement: hm(created_at), heure_traitement: hm(traite_at) }));
   const out = parseJSON(await claude(SYSTEM_BILAN, [{ type: "text", text: JSON.stringify(rows) }], 6000));
   return json(out);
 }
