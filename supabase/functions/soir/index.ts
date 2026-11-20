@@ -157,10 +157,16 @@ async function admin(body: { password?: string; op?: string }) {
   }
   if (body.op === "injecter") {
     const now = Date.now();
-    const rows = TESTS.map(([texte, zone, categorie, sous_categorie, partenaire, urgence, responsable, resume], i) => ({
-      texte, zone, categorie, sous_categorie, partenaire: partenaire || null, urgence, responsable, resume,
-      analyse_ia: "ok", created_at: new Date(now - (TESTS.length - i) * 90_000).toISOString(),
-    }));
+    // Quelques cas déjà traités, pour montrer le délai de traitement à l'écran (index -> minutes)
+    const FAIT: Record<number, number> = { 0: 12, 2: 4, 4: 9, 8: 6 };
+    const rows = TESTS.map(([texte, zone, categorie, sous_categorie, partenaire, urgence, responsable, resume], i) => {
+      const t0 = now - (TESTS.length - i) * 90_000;
+      return {
+        texte, zone, categorie, sous_categorie, partenaire: partenaire || null, urgence, responsable, resume,
+        analyse_ia: "ok", created_at: new Date(t0).toISOString(),
+        statut: i in FAIT ? "traite" : "nouveau", traite_at: i in FAIT ? new Date(t0 + FAIT[i] * 60_000).toISOString() : null,
+      };
+    });
     const { error } = await db.from("signalements").insert(rows);
     return error ? json({ error: error.message }, 500) : json({ ok: true, n: rows.length });
   }

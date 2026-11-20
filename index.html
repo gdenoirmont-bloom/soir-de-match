@@ -61,13 +61,17 @@
   .feed::-webkit-scrollbar { width: 8px; } .feed::-webkit-scrollbar-thumb { background:#333; border-radius: 8px; }
   .item { display:flex; gap: 16px; align-items:center; background: var(--card); border-radius: 20px; padding: 14px 18px 14px 14px; margin-bottom: 12px; animation: pop .5s ease-out; }
   .item.urgent { background: var(--red); }
-  .item.done { opacity: .45; }
+  .item.done > :not(.time) { opacity: .45; }
   .item .thumb { flex: 0 0 96px; height: 96px; border-radius: 14px; background: #262626; overflow:hidden; display:flex; align-items:center; justify-content:center; color:#777; font-size: 11px; text-align:center; font-weight:700; }
   .item .thumb img { width:100%; height:100%; object-fit:cover; }
   .item .mid { flex: 1; min-width: 0; }
   .item .sum { font-weight: 900; font-size: 24px; margin: 6px 0 4px; line-height: 1.15; }
   .item .meta { color: #cfcfcf; font-size: 16px; } .item .meta b { color:#fff; }
-  .item .time { font-weight: 900; font-size: 28px; }
+  .item .time { font-weight: 900; font-size: 28px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; text-align: right; }
+  .item .time small { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .item .time .t2 { font-size: 18px; color: #d8d8d8; }
+  .item .time .dur { margin-top: 2px; background: #fff; color: #000; border-radius: 999px; padding: 4px 10px; font-size: 15px; white-space: nowrap; }
+  .count .moy { display: block; font-style: normal; font-size: 12px; color: var(--muted); text-transform: none; letter-spacing: 0; margin-top: 2px; }
   @keyframes pop { from { transform: translateY(-14px) scale(.98); opacity: 0; } to { transform:none; opacity:1; } }
   .side { display:flex; flex-direction:column; gap: 14px; min-height: 0; }
   .zones { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -102,7 +106,10 @@
     .item .mid { flex: 1 1 0; min-width: 0; }
     .item .sum { font-size: 17px; }
     .item .meta { font-size: 13px; }
-    .item .time { font-size: 15px; flex: none; }
+    .item .time { font-size: 15px; flex: none; gap: 2px; }
+    .item .time .t2 { font-size: 13px; }
+    .item .time .dur { font-size: 12px; padding: 3px 8px; }
+    .item .time small { font-size: 9px; }
     .side { margin-top: 18px; gap: 14px; }
     .zones { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
     .zone { min-height: 0; padding: 8px; border-radius: 12px; }
@@ -2456,6 +2463,9 @@ const LOGO = "pbb-logo.png";
 const brand = (kick) => `<div class="brand"><img class="club" src="${LOGO}" alt="Paris Basketball"><div class="kicker">${kick}</div></div>`;
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const hm = (iso) => new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+// Délai entre le signalement et son traitement, en minutes (null si pas traité)
+const delai = (r) => r.statut === "traite" && r.traite_at ? Math.max(0, Math.round((new Date(r.traite_at) - new Date(r.created_at)) / 60000)) : null;
+const duree = (m) => m < 1 ? "moins d'1 min" : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
 const ls = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
 
 // ---------- Données ----------
@@ -2521,7 +2531,7 @@ if (!DEMO) {
       await new Promise((s) => setTimeout(s, 1200));
       const r = rows.find((x) => x.id === id); const c = fake(r); upsert({ id, ...c }); emit({ type: "UPDATE", row: { ...r, ...c } }); return c;
     },
-    async traiter(id, statut) { upsert({ id, statut }); emit({ type: "UPDATE", row: rows.find((x) => x.id === id) }); },
+    async traiter(id, statut) { upsert({ id, statut, traite_at: statut === "traite" ? new Date().toISOString() : null }); emit({ type: "UPDATE", row: rows.find((x) => x.id === id) }); },
     async bilan() {
       const parts = [...new Set(rows.filter((r) => r.partenaire).map((r) => r.partenaire))];
       const resps = [...new Set(rows.filter((r) => r.responsable).map((r) => r.responsable))];
@@ -2536,7 +2546,9 @@ if (!DEMO) {
           "L'écran LED derrière le panier est éteint.", "Logo du partenaire assurance mal placé sur le mur des loges.", "Porte de secours bloquée par des caisses, coursive ouest.",
           "Plus de serviettes en loge 12.", "La voiture du partenaire automobile est bien exposée sur le parvis.", "Poubelles pleines près de la buvette nord.",
           "Idée : un point d'eau gratuit pour les familles.", "Le jeu concours du partenaire énergie a bien tourné.", "File d'attente au vestiaire porte C."];
-        T.forEach((texte, i) => { const r = { id: crypto.randomUUID(), created_at: new Date(Date.now() - (T.length - i) * 90000).toISOString(), texte, zone: ZONES[i % 8], statut: "nouveau" }; upsert({ ...r, ...fake(r) }); });
+        const FAIT = { 0: 12, 2: 4, 4: 9, 8: 6 }; // index -> minutes avant traitement
+        T.forEach((texte, i) => { const t0 = Date.now() - (T.length - i) * 90000; const r = { id: crypto.randomUUID(), created_at: new Date(t0).toISOString(), texte, zone: ZONES[i % 8],
+          statut: i in FAIT ? "traite" : "nouveau", traite_at: i in FAIT ? new Date(t0 + FAIT[i] * 60000).toISOString() : null }; upsert({ ...r, ...fake(r) }); });
         rows.sort((a, b) => b.created_at.localeCompare(a.created_at)); emit({ type: "SYNC" }); return { ok: true };
       }
     },
@@ -2645,7 +2657,7 @@ function vEcran() {
       <div class="count"><i class="dot" style="background:#fff"></i><b id="cInc">0</b><span>incidents</span></div>
       <div class="count"><i class="dot" style="background:var(--blue)"></i><b id="cAct">0</b><span>activations partenaires</span></div>
       <div class="count"><i class="dot" style="background:var(--grey)"></i><b id="cIdee">0</b><span>idées</span></div>
-      <div class="count"><b id="cDone">0</b><span>traités</span></div>
+      <div class="count"><b id="cDone">0</b><span>traités<em class="moy" id="cMoy"></em></span></div>
     </header>
     <div class="feed" id="feed"></div>
     <aside class="side"><div class="zones" id="zones"></div>
@@ -2660,6 +2672,8 @@ function vEcran() {
     document.getElementById("cAct").textContent = n((r) => r.categorie === "Activation partenaire");
     document.getElementById("cIdee").textContent = n((r) => r.categorie === "Idée");
     document.getElementById("cDone").textContent = n((r) => r.statut === "traite");
+    const ds = rows.map(delai).filter((d) => d !== null);
+    document.getElementById("cMoy").textContent = ds.length ? `en ${duree(Math.round(ds.reduce((a, b) => a + b, 0) / ds.length))} en moyenne` : "";
     const feed = document.getElementById("feed");
     feed.innerHTML = list.length ? list.map((r) => {
       const hidden = r.masque;
@@ -2667,7 +2681,9 @@ function vEcran() {
       return `<div class="item ${r.urgence === "Urgent" && r.statut !== "traite" ? "urgent" : ""} ${r.statut === "traite" ? "done" : ""}">
         ${thumb(r)}<div class="mid">${tags(r)}<div class="sum">${r.analyse_ia === "ok" || r.analyse_ia === "echec" ? esc(sum) : sum}</div>
         <div class="meta"><b>${esc(r.zone || "Zone ?")}</b>${r.responsable ? " → " + esc(r.responsable) : ""}</div></div>
-        <div class="time">${hm(r.created_at)}</div></div>`;
+        <div class="time">${delai(r) !== null
+          ? `<span><small>Signalé</small>${hm(r.created_at)}</span><span class="t2"><small>Traité</small>${hm(r.traite_at)}</span><span class="dur">en ${duree(delai(r))}</span>`
+          : hm(r.created_at)}</div></div>`;
     }).join("") : `<div class="empty">En attente des premiers signalements. Scannez le QR code.</div>`;
     if (evt && evt.type === "INSERT") feed.scrollTop = 0;
     const max = Math.max(1, ...ZONES.map((z) => n((r) => r.zone === z)));
@@ -2717,7 +2733,7 @@ function vPoste() {
       <p class="hint" style="margin:0 2px 14px">${alertsOn ? (awake ? "Alertes actives. L'écran reste allumé tant que cette page est ouverte." : "Alertes actives. Gardez cette page ouverte et l'écran allumé.") : "Touchez « Activer les alertes » et gardez cette page ouverte : un téléphone verrouillé ne sonne pas."} Sur iPhone, sortez du mode silencieux.</p>
       ${alertMsg ? `<div class="alert">${esc(alertMsg)}</div>` : ""}
       ${mine.length ? mine.map((r) => `<div class="pitem ${r.urgence === "Urgent" ? "urgent" : ""} ${r.statut === "traite" ? "done" : ""}">
-        ${tags(r)}<div class="sum">${esc(r.masque ? "Signalement masqué" : r.resume || r.texte)}</div><div class="meta">${esc(r.zone || "Zone ?")} · ${hm(r.created_at)}</div>
+        ${tags(r)}<div class="sum">${esc(r.masque ? "Signalement masqué" : r.resume || r.texte)}</div><div class="meta">${esc(r.zone || "Zone ?")} · signalé à ${hm(r.created_at)}${delai(r) !== null ? ` · traité à ${hm(r.traite_at)}, en ${duree(delai(r))}` : ""}</div>
         <button class="btn small ${r.statut === "traite" ? "ghost" : ""}" data-id="${r.id}" data-s="${r.statut === "traite" ? "nouveau" : "traite"}">${r.statut === "traite" ? "Rouvrir" : "Traité"}</button></div>`).join("")
         : `<p class="note">Rien pour vous pour l'instant.</p>`}</div>`;
     document.getElementById("chg").onclick = () => { role = null; draw(); };
